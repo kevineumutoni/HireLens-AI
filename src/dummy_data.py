@@ -2,11 +2,12 @@
 """
 Generate realistic dummy candidates matching Umurava schema.
 NO hardcoded dates, NO random crashes, DIVERSE profiles.
+FIXED: randint edge case when years_exp=0
 """
 import random
 from datetime import datetime, timedelta
 from typing import List
-from src.schemas.talent_profile import TalentProfile, Skill, WorkExperience, Education, Project, Availability
+from src.schemas.talent_profile import TalentProfile, Skill, WorkExperience, Education, Project, Availability, Language
 
 class DummyDataGenerator:
     """Generate diverse candidate profiles for screening tests."""
@@ -81,6 +82,10 @@ class DummyDataGenerator:
         "Strathmore University"
     ]
     
+    LANGUAGES = [
+        "English", "French", "Swahili", "Kinyarwanda", "Luganda", "Amharic"
+    ]
+    
     @staticmethod
     def _generate_valid_date_range(years_of_exp: int) -> tuple:
         """Generate realistic start/end dates for work experience."""
@@ -120,7 +125,7 @@ class DummyDataGenerator:
             num_skills = random.randint(4, 6)
             skill_level_dist = ["Intermediate", "Intermediate", "Advanced", "Beginner"]
         elif profile_type == "weak":
-            years_exp = random.randint(0, 2)
+            years_exp = random.randint(1, 2)  # FIXED: Changed from (0, 2) to (1, 2)
             num_skills = random.randint(2, 4)
             skill_level_dist = ["Beginner", "Beginner", "Intermediate"]
         else:  # balanced
@@ -128,17 +133,30 @@ class DummyDataGenerator:
             num_skills = random.randint(3, 7)
             skill_level_dist = ["Intermediate", "Advanced", "Beginner", "Expert"]
         
+        # SAFETY: Ensure years_exp is always >= 1
+        years_exp = max(1, years_exp)
+        
         # Generate skills
         selected_skills = random.sample(DummyDataGenerator.SKILLS, min(num_skills, len(DummyDataGenerator.SKILLS)))
         skills = []
         for skill in selected_skills:
             level = random.choice(skill_level_dist)
             if level in skill["levels"]:
+                # FIXED: Ensure years_of_experience is always valid (1 to years_exp)
+                skill_years = random.randint(1, max(1, years_exp))
                 skills.append(Skill(
                     name=skill["name"],
                     level=level,
-                    yearsOfExperience=random.randint(1, years_exp)
+                    yearsOfExperience=skill_years
                 ))
+        
+        # Generate languages
+        languages = []
+        for _ in range(random.randint(1, 2)):
+            languages.append(Language(
+                name=random.choice(DummyDataGenerator.LANGUAGES),
+                proficiency=random.choice(["Basic", "Conversational", "Fluent", "Native"])
+            ))
         
         # Generate work experience
         experiences = []
@@ -150,18 +168,21 @@ class DummyDataGenerator:
                 startDate=start,
                 endDate=end if random.random() > 0.3 else "Present",
                 description=f"Developed scalable solutions, led technical initiatives, mentored junior developers",
-                technologies=[s.name for s in random.sample(skills, min(3, len(skills)))],
+                technologies=[s.name for s in random.sample(skills, min(3, len(skills))) if skills],
                 isCurrent=True if random.random() > 0.5 else False
             ))
         
-        # Generate education
+        # Generate education - FIXED: endYear must be after startYear
+        start_year = datetime.now().year - random.randint(6, 12)
+        end_year = start_year + random.randint(3, 5)  # FIXED: Ensure endYear > startYear
+        
         education = [
             Education(
                 institution=random.choice(DummyDataGenerator.UNIVERSITIES),
                 degree=random.choice(["Bachelor's", "Master's"]),
                 fieldOfStudy=random.choice(["Computer Science", "Software Engineering", "Information Technology"]),
-                startYear=datetime.now().year - random.randint(5, 12),
-                endYear=datetime.now().year - random.randint(1, 5)
+                startYear=start_year,
+                endYear=end_year
             )
         ]
         
@@ -172,16 +193,18 @@ class DummyDataGenerator:
             projects.append(Project(
                 name=f"Project {random.choice(['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'])}",
                 description="Full-stack application with modern tech stack and API integration",
-                technologies=[s.name for s in random.sample(skills, min(3, len(skills)))],
+                technologies=[s.name for s in random.sample(skills, min(3, len(skills))) if skills],
                 role=random.choice(["Lead Developer", "Backend Engineer", "Full-Stack Developer"]),
                 startDate=start,
-                endDate=end
+                endDate=end,
+                link=f"https://github.com/{first_name.lower()}-{last_name.lower()}/{candidate_id}"
             ))
         
         # Availability
         availability = Availability(
             status=random.choice(["Available", "Open to Opportunities", "Available"]),
-            type=random.choice(["Full-time", "Full-time", "Contract"])
+            type=random.choice(["Full-time", "Full-time", "Contract"]),
+            startDate=None
         )
         
         return TalentProfile(
@@ -189,12 +212,19 @@ class DummyDataGenerator:
             lastName=last_name,
             email=f"{first_name.lower()}.{last_name.lower()}@{candidate_id}.com",
             headline=f"{random.choice(DummyDataGenerator.TITLES)} | Specialized in {random.choice([s.name for s in skills[:2]] if skills else ['Backend'])}",
+            bio=f"Passionate developer with {years_exp} years of experience in building scalable systems.",
             location=location,
             skills=skills,
+            languages=languages,
             experience=experiences,
             education=education,
             projects=projects,
-            availability=availability
+            availability=availability,
+            socialLinks={
+                "linkedin": f"https://linkedin.com/in/{first_name.lower()}-{last_name.lower()}",
+                "github": f"https://github.com/{first_name.lower()}-{last_name.lower()}",
+                "portfolio": f"https://{first_name.lower()}-{last_name.lower()}.dev"
+            }
         )
     
     @staticmethod

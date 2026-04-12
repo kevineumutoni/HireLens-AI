@@ -1,53 +1,93 @@
-# src/services/matcher.py
-"""Candidate-to-job matching with Gemini."""
+"""Candidate-to-job matching with Gemini - SIMPLIFIED for reliability + clean output."""
 from src.schemas.talent_profile import TalentProfile
 from src.schemas.job_schema import Job
 from src.services.gemini_client import GeminiClient
 
+
 class CandidateMatcher:
     def __init__(self):
-        self.gemini = GeminiClient()
-    
+        self.gemini = GeminiClient(debug=False)
+
     async def match_candidate(self, job: Job, candidate: TalentProfile) -> dict:
         """Score candidate against job."""
         prompt = self._build_prompt(job, candidate)
-        
         result = await self.gemini.generate_structured_response(prompt)
+
+        # keep IDs regardless of success/failure
         result["candidateId"] = f"{candidate.firstName}_{candidate.lastName}"
         result["jobId"] = job.jobId
-        
         return result
-    
+
     def _build_prompt(self, job: Job, candidate: TalentProfile) -> str:
-        """Build unbiased screening prompt."""
-        skills_str = "\n".join([f"  - {s.name} ({s.level}): {s.yearsOfExperience} yrs" for s in candidate.skills])
-        exp_str = "\n".join([f"  - {e.role} at {e.company}" for e in candidate.experience[:2]])
-        
+        """Build a strict-format screening prompt (easy parsing, no truncation)."""
+
+        # Provide more structured input (avoid losing important info)
+        skills_lines = "\n".join(
+            [f"- {s.name} | level={s.level} | years={s.yearsOfExperience}" for s in candidate.skills]
+        )
+
+        exp_lines = "\n".join(
+            [
+                f"- {e.role} @ {e.company} ({e.startDate} to {e.endDate}) tech={', '.join(e.technologies[:5])}"
+                for e in (candidate.experience[:3] if candidate.experience else [])
+            ]
+        ) or "- None provided"
+
+        if candidate.education:
+            edu0 = candidate.education[0]
+            education_line = f"{edu0.degree} in {edu0.fieldOfStudy} ({edu0.startYear}-{edu0.endYear})"
+        else:
+            education_line = "Not specified"
+
         return f"""
-You are an UNBIASED AI recruiter. Evaluate ONLY on qualifications and skills. IGNORE: name, age, location, gender.
+You are an unbiased recruiting assistant.
+Evaluate ONLY job-related qualifications. Ignore name, gender, age, nationality, location.
 
-JOB: {job.title}
-Required Skills: {', '.join(job.requiredSkills)}
-Min Experience: {job.minYearsExperience}+ years
-Required Education: {job.requiredEducation}
+JOB
+Title: {job.title}
+Required skills: {", ".join(job.requiredSkills)}
+Preferred skills: {", ".join(job.preferredSkills)}
+Min years experience: {job.minYearsExperience}
+Education requirement: {job.requiredEducation}
 
-CANDIDATE:
+CANDIDATE
 Headline: {candidate.headline}
+Education: {education_line}
+Availability: {candidate.availability.status} ({candidate.availability.type})
+
 Skills:
-{skills_str}
+{skills_lines}
 
-Experience:
-{exp_str}
+Experience (top 3):
+{exp_lines}
 
-Education: {candidate.education[0].degree if candidate.education else 'N/A'}
+SCORING RULES
+- Score 80-100: has all required skills + relevant experience.
+- Score 60-79: missing 1-2 required skills OR weaker experience, but solid foundation.
+- Score 0-59: major gaps in required skills/experience.
 
-TASK: Return ONLY this JSON:
-{{
-    "matchScore": <0-100>,
-    "strengths": [<string>, <string>],
-    "gaps": [<string>, <string>],
-    "recommendation": "Strong Yes|Yes|Maybe|No"
-}}
+Return EXACTLY this format (no extra text, no markdown):
 
-Score 75+ if candidate has all required skills. Score 50-75 if missing 1-2 skills. Score <50 if major gaps.
-"""
+Score: <0-100>/100
+Strengths:
+- <max 12 words>
+- <max 12 words>
+Gaps:
+Gaps:
+- <must name a missing required skill OR a missing experience area>
+- <must name a missing required skill OR a missing experience area>
+Recommendation: Strong Yes|Yes|Maybe|No
+Reasoning: <2 sentences max, <= 240 characters>
+""".strip()
+
+    def _build_resume_prompt(self, job: Job, resume_text: str) -> str:
+        """For resume screening."""
+        return f"""Evaluate this resume for {job.title}.
+
+Required skills: {', '.join(job.requiredSkills)}
+Preferred skills: {', '.join(job.preferredSkills)}
+
+Resume:
+{resume_text}
+
+Give a score 0-100 and a short explanation."""

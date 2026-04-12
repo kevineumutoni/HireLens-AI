@@ -60,4 +60,4 @@ class TalentProfile(BaseModel):
     certifications: Optional[List[Certification]] = None
     projects: List[Project]
     availability: Availability
-    socialLinks: Optional[dict] = Nonec
+    socialLinks: Optional[dict] = None
