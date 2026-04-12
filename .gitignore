@@ -5,6 +5,12 @@ __pycache__/
 
 # C extensions
 *.so
+.screening_results.json
+/screening_results.json
+screening_results.json/
+./screening_results.json/
+/.screening_results.json/
+
 
 # Distribution / packaging
 .Python

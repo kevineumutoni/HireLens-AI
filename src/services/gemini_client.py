@@ -198,9 +198,6 @@ class GeminiClient:
             "reasoning": reasoning,
         }
 
-    # ---------------------------
-    # Public methods
-    # ---------------------------
 
     async def generate_structured_response(self, prompt: str) -> dict:
         """Get scoring response in structured format."""

@@ -1,10 +1,8 @@
-# src/config/settings.py
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-MONGODB_DB = "hirelens"
+
 class Settings:
     """HireLens configuration - no hardcoded values, using latest Gemini models."""
     
@@ -14,7 +12,6 @@ class Settings:
     API_TIMEOUT_SECONDS = 60
     
     # Model Selection - LATEST available models (2.0-flash is DEPRECATED)
-    # Try in order: 2.5-flash (latest) -> 1.5-flash (stable) -> 1.5-pro (fallback)
     PREFERRED_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     FALLBACK_MODELS = ["gemini-1.5-flash", "gemini-1.5-pro"]
     
@@ -29,8 +26,11 @@ class Settings:
     # Rate limiting
     REQUEST_DELAY_MS = 500  # 500ms between requests
 
+    MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+    MONGODB_DB = "hirelens"
+
 settings = Settings()
 
 # Validate on startup
 if not settings.GEMINI_API_KEY:
-    raise ValueError("❌ GEMINI_API_KEY not found in .env - Add GEMINI_API_KEY to your .env file")
+    raise ValueError(" GEMINI_API_KEY not found in .env - Add GEMINI_API_KEY to your .env file")
