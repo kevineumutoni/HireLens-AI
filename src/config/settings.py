@@ -1,36 +1,31 @@
-"""
-Load environment variables and configure AI settings.
-"""
+# src/config/settings.py
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class Settings:
-    """Centralized configuration for the AI module."""
-    
-    # Gemini API Configuration
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY")
-    
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY not found in environment variables. Create .env file.")
-    
-    # AI Behavior Configuration
-    TEMPERATURE: float = float(os.getenv("AI_TEMPERATURE", 0.1))
-    MAX_OUTPUT_TOKENS: int = int(os.getenv("AI_MAX_TOKENS", 1024))
-    TOP_N_SHORTLIST: int = int(os.getenv("AI_TOP_N_SHORTLIST", 10))
-    
-    # Scoring Weights (must sum to 1.0)
-    MATCH_SCORE_WEIGHTS: dict = {
-        "skills": 0.40,
-        "experience": 0.30,
-        "education": 0.15,
-        "relevance": 0.15
-    }
+    """HireLens configuration - no hardcoded values."""
     
     # API Configuration
-    GEMINI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/models"
-    API_TIMEOUT_SECONDS: int = 30
-    MAX_RETRIES: int = 2
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+    API_TIMEOUT_SECONDS = 30
+    
+    # Model Selection (NEVER hardcoded)
+    PREFERRED_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    FALLBACK_MODEL = "gemini-2.0-flash"
+    
+    # Generation Config
+    TEMPERATURE = 0.3  # Low = consistent, unbiased
+    MAX_OUTPUT_TOKENS = 4000
+    
+    # Screening Config
+    TOP_N_CANDIDATES = 10
+    BATCH_SIZE = 3
 
 settings = Settings()
+
+# Validate on startup
+if not settings.GEMINI_API_KEY:
+    raise ValueError("❌ GEMINI_API_KEY not found in .env")
