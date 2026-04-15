@@ -19,7 +19,7 @@ class GeminiClient:
     def __init__(self, debug: bool = False):
         self.api_key = settings.GEMINI_API_KEY
         if not self.api_key:
-            raise ValueError("❌ GEMINI_API_KEY not in .env")
+            raise ValueError(" GEMINI_API_KEY not in .env")
 
         self.base_url = settings.GEMINI_BASE_URL
         self.timeout = settings.API_TIMEOUT_SECONDS

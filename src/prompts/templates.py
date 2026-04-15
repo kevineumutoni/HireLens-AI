@@ -3,7 +3,7 @@ Centralized prompt templates for Gemini API calls.
 """
 
 MATCH_CANDIDATE_PROMPT = """
-You are an expert HR AI assistant helping recruiters screen candidates.
+You are an expert HR AI assistant helping recruiters screen candidates in Umurava Africa.
 
 ## JOB REQUIREMENTS
 {job_description}

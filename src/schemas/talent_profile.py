@@ -1,23 +1,24 @@
 # src/schemas/talent_profile.py
-from pydantic import BaseModel, EmailStr
+# Matches the Umurava Talent Profile Schema specification exactly.
+from pydantic import BaseModel
 from typing import Optional, List
 
 class Skill(BaseModel):
     name: str
-    level: str  # Beginner, Intermediate, Advanced, Expert
+    level: str  # Beginner | Intermediate | Advanced | Expert
     yearsOfExperience: int
 
 class Language(BaseModel):
     name: str
-    proficiency: str  # Basic, Conversational, Fluent, Native
+    proficiency: str  # Basic | Conversational | Fluent | Native
 
 class WorkExperience(BaseModel):
     company: str
     role: str
-    startDate: str  # YYYY-MM
-    endDate: str  # YYYY-MM or "Present"
-    description: str
-    technologies: List[str]
+    startDate: str        # YYYY-MM
+    endDate: str          # YYYY-MM or "Present"
+    description: str = ""
+    technologies: List[str] = []
     isCurrent: bool = False
 
 class Education(BaseModel):
@@ -35,15 +36,15 @@ class Certification(BaseModel):
 class Project(BaseModel):
     name: str
     description: str
-    technologies: List[str]
+    technologies: List[str] = []
     role: str
     link: Optional[str] = None
-    startDate: str  # YYYY-MM
-    endDate: str  # YYYY-MM
+    startDate: str
+    endDate: str
 
 class Availability(BaseModel):
-    status: str  # Available, Open to Opportunities, Not Available
-    type: str  # Full-time, Part-time, Contract, Internship
+    status: str   # Available | Open to Opportunities | Not Available
+    type: str     # Full-time | Part-time | Contract | Internship
     startDate: Optional[str] = None
 
 class TalentProfile(BaseModel):
@@ -53,11 +54,11 @@ class TalentProfile(BaseModel):
     headline: str
     bio: Optional[str] = None
     location: str
-    skills: List[Skill]
+    skills: List[Skill] = []
     languages: Optional[List[Language]] = None
-    experience: List[WorkExperience]
-    education: List[Education]
+    experience: List[WorkExperience] = []
+    education: List[Education] = []
     certifications: Optional[List[Certification]] = None
-    projects: List[Project]
+    projects: List[Project] = []
     availability: Availability
     socialLinks: Optional[dict] = None
