@@ -140,10 +140,8 @@ Return ONLY valid JSON (no markdown, no extra text) with this exact structure:
                 }
             )
             
-            # Parse response
             response_text = response.text.strip()
             
-            # Remove markdown code blocks if present
             if response_text.startswith("```json"):
                 response_text = response_text[7:]
             if response_text.startswith("```"):

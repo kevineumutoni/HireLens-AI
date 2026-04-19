@@ -1,36 +1,61 @@
+# src/config/settings.py
+"""
+Configuration management for HireLens-AI backend.
+Loads settings from .env file using Pydantic v2.
+"""
+
 import os
+from pydantic_settings import BaseSettings
+from typing import Optional, List
 from dotenv import load_dotenv
 
 load_dotenv()
 
-class Settings:
+
+class Settings(BaseSettings):
     """HireLens configuration - no hardcoded values, using latest Gemini models."""
     
-    # API Configuration
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-    API_TIMEOUT_SECONDS = 60
+    GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY", None)
+    GEMINI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/models"
+    API_TIMEOUT_SECONDS: int = 60
     
-    # Model Selection - LATEST available models (2.0-flash is DEPRECATED)
-    PREFERRED_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-    FALLBACK_MODELS = ["gemini-1.5-flash", "gemini-1.5-pro"]
+    # ==================== Model Selection ====================
+    # LATEST available models (2.0-flash is DEPRECATED)
+    PREFERRED_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    FALLBACK_MODELS: List[str] = ["gemini-1.5-flash", "gemini-1.5-pro"]
     
-    # Generation Config - tuned for consistent JSON
-    TEMPERATURE = 0.2  # Very low for deterministic output
-    MAX_OUTPUT_TOKENS = 2000
+    TEMPERATURE: float = 0.2  # Very low for deterministic output
+    MAX_OUTPUT_TOKENS: int = 2000
     
-    # Screening Config
-    TOP_N_CANDIDATES = 10
-    BATCH_SIZE = 3
+    TOP_N_CANDIDATES: int = 10
+    BATCH_SIZE: int = 3
     
-    # Rate limiting
-    REQUEST_DELAY_MS = 500  # 500ms between requests
+    REQUEST_DELAY_MS: int = 500  # 500ms between requests
 
-    MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-    MONGODB_DB = "hirelens"
+    MONGODB_URI: str = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+    MONGODB_DB: str = "hirelens"
+
+    FRONTEND_URL: str = "http://localhost:3000"
+    
+    API_PORT: int = 8000
+    API_HOST: str = "0.0.0.0"
+    DEBUG: bool = True
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+        extra = "ignore"  # ← THIS ALLOWS EXTRA ENV VARIABLES
+
 
 settings = Settings()
 
-# Validate on startup
 if not settings.GEMINI_API_KEY:
-    raise ValueError(" GEMINI_API_KEY not found in .env - Add GEMINI_API_KEY to your .env file")
+    print("⚠️  WARNING: GEMINI_API_KEY not found in .env")
+    print("   Some AI features may not work without a valid Gemini API key")
+    print("   Add GEMINI_API_KEY=your_key to your .env file to enable AI screening")
+    print("   You can still test the API without the key")
+else:
+    print(f" Gemini API Key loaded (prefix: {settings.GEMINI_API_KEY[:10]}...)")
+
+print(f"MongoDB: {settings.MONGODB_URI}")
+print(f" Frontend URL: {settings.FRONTEND_URL}")

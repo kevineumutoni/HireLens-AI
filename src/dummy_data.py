@@ -12,7 +12,6 @@ from src.schemas.talent_profile import TalentProfile, Skill, WorkExperience, Edu
 class DummyDataGenerator:
     """Generate diverse candidate profiles for screening tests."""
     
-    # Predefined pools for realistic variety
     FIRST_NAMES = [
         "Jean", "Amina", "David", "Marie", "Khalid", "Fatima",
         "Emmanuel", "Nadia", "Ibrahim", "Sophia", "Claude",
@@ -89,14 +88,11 @@ class DummyDataGenerator:
     @staticmethod
     def _generate_valid_date_range(years_of_exp: int) -> tuple:
         """Generate realistic start/end dates for work experience."""
-        # FIXED: Handle edge case where years_of_exp might be 0 or negative
         years_of_exp = max(1, years_of_exp)  # Minimum 1 year
         
-        # End date is today or up to 3 months ago
         end_days_ago = random.randint(0, 90)
         end_date = datetime.now() - timedelta(days=end_days_ago)
         
-        # Start date is years_of_exp ago, plus random variance
         start_days_ago = random.randint(
             int(365 * years_of_exp),
             int(365 * years_of_exp) + 180
@@ -115,7 +111,6 @@ class DummyDataGenerator:
         last_name = random.choice(DummyDataGenerator.LAST_NAMES)
         location = random.choice(DummyDataGenerator.LOCATIONS)
         
-        # Determine experience level based on profile
         if profile_type == "strong":
             years_exp = random.randint(4, 8)
             num_skills = random.randint(6, 10)
@@ -133,7 +128,6 @@ class DummyDataGenerator:
             num_skills = random.randint(3, 7)
             skill_level_dist = ["Intermediate", "Advanced", "Beginner", "Expert"]
         
-        # SAFETY: Ensure years_exp is always >= 1
         years_exp = max(1, years_exp)
         
         # Generate skills
@@ -172,7 +166,7 @@ class DummyDataGenerator:
                 isCurrent=True if random.random() > 0.5 else False
             ))
         
-        # Generate education - FIXED: endYear must be after startYear
+        # Generate education 
         start_year = datetime.now().year - random.randint(6, 12)
         end_year = start_year + random.randint(3, 5)  # FIXED: Ensure endYear > startYear
         

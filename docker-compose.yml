@@ -1,0 +1,22 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: hirelens-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: hirelens
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - hirelens-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  hirelens-network:
+    driver: bridge

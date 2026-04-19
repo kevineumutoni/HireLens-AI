@@ -16,7 +16,6 @@ from src.services.explainability import ExplainabilityGenerator
 async def main():
     print("HireLens-AI: Unbiased Talent Screening System")
 
-    # Job posting
     job = Job(
         jobId="JOB-001",
         title="Backend Engineer - AI Systems",
@@ -35,12 +34,10 @@ async def main():
     print(f"   Required: {', '.join(job.requiredSkills)}")
     print(f"   Experience: {job.minYearsExperience}+ years")
 
-    # Generate candidates
     print(f"\n👥 Generating diverse candidate pool...")
     candidates = DummyDataGenerator.generate_candidates_batch(50)
     print(f"    Generated {len(candidates)} candidates")
 
-    # Initialize services
     try:
         matcher = CandidateMatcher()
         scorer = Scorer()
@@ -50,7 +47,6 @@ async def main():
         print(f" Failed to initialize services: {e}")
         return
 
-    # Screen candidates
     print(f"\n Screening candidates with Gemini AI...")
     matches = []
     for i, candidate in enumerate(candidates, 1):
@@ -70,7 +66,6 @@ async def main():
                 print(f" FAILED ({err[:60]})")
 
         except Exception as e:
-            # runtime exception (not Gemini failure)
             print(f" Exception ({str(e)[:60]})")
             matches.append(
                 {
@@ -86,7 +81,6 @@ async def main():
                 }
             )
 
-    # Separate successful vs failed
     successful = [
         m
         for m in matches
@@ -107,13 +101,11 @@ async def main():
         print("\n No successful Gemini evaluations. Check API key, quota, or model availability.")
         return
 
-    # Rank ONLY successful evaluations (fairness)
     print(f"\n Scoring and ranking (successful only)...")
     weighted = scorer.apply_weights(successful)
     normalized = scorer.normalize_scores(weighted)
     shortlist = ranker.create_shortlist(normalized, top_n=min(10, len(normalized)))
 
-    # Explain (for shortlist)
     print(f"\n Generating explanations for shortlist...")
     for entry in shortlist:
         cand_id = entry["candidateId"]
@@ -130,7 +122,6 @@ async def main():
         except Exception as e:
             entry["explanation"] = f"Explanation unavailable: {str(e)[:120]}"
 
-    # Display results
     print(" TOP SHORTLISTED CANDIDATES")
 
     for entry in shortlist:
@@ -166,19 +157,16 @@ async def main():
     try:
         from src.db import jobs_col, candidates_col, results_col
         
-        # 1. Save job to MongoDB (if not already there)
         jobs_col.insert_one({
             **job.model_dump(),  # Pydantic v2
             "insertedAt": datetime.now().isoformat(),
             "source": "screening_run"
         })
         
-        # 2. Save candidates to MongoDB (batch)
         candidates_data = [c.model_dump() for c in candidates]
         if candidates_data:
             candidates_col.insert_many(candidates_data)
         
-        # 3. Save screening results
         results_col.insert_one({
             "job": job.model_dump(),
             "total_evaluated": len(candidates),
@@ -197,7 +185,6 @@ async def main():
         
     except Exception as e:
         print(f"    MongoDB save failed: {e}")
-        # Fallback to JSON if MongoDB fails
         print(f"   Falling back to JSON...")
         try:
             with open("screening_results.json", "w", encoding="utf-8") as f:

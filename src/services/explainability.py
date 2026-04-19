@@ -11,15 +11,12 @@ def _clean_text(s: str, max_chars: int) -> str:
     if not s:
         return ""
 
-    # remove code fences / markdown bullets
     s = re.sub(r"```.*?```", "", s, flags=re.DOTALL)
     s = s.replace("**", "").replace("*", "")
     s = re.sub(r"^\s*[-•]+\s*", "", s, flags=re.MULTILINE)
 
-    # normalize whitespace
     s = re.sub(r"\s+", " ", s).strip()
 
-    # cap length safely
     if len(s) > max_chars:
         s = s[: max_chars - 1].rstrip() + "…"
     return s
@@ -34,7 +31,6 @@ def _two_sentence_cap(s: str, max_chars: int = 280) -> str:
     if not s:
         return s
 
-    # Split into sentences roughly
     parts = re.split(r"(?<=[.!?])\s+", s)
     if len(parts) <= 2:
         return _clean_text(s, max_chars=max_chars)
@@ -45,7 +41,6 @@ def _two_sentence_cap(s: str, max_chars: int = 280) -> str:
 
 class ExplainabilityGenerator:
     def __init__(self):
-        # Keep text-mode GeminiClient; no JSON mode needed
         self.gemini = GeminiClient(debug=False)
 
     async def generate_explanation(self, job, candidate, match_result) -> str:
@@ -62,7 +57,6 @@ class ExplainabilityGenerator:
         gaps = match_result.get("gaps", []) or []
         reasoning = match_result.get("reasoning", "") or ""
 
-        # If evaluation failed, be transparent and fair.
         if status != "success" or score is None:
             err = match_result.get("error", "Gemini evaluation failed")
             msg = (
@@ -71,12 +65,10 @@ class ExplainabilityGenerator:
             )
             return _two_sentence_cap(msg, max_chars=280)
 
-        # Keep only the most useful items
         s1 = strengths[0] if len(strengths) > 0 else "Meets several core requirements"
         s2 = strengths[1] if len(strengths) > 1 else ""
         g1 = gaps[0] if len(gaps) > 0 else "Some skills/experience details are unclear"
 
-        # Strong output shaping: exact format + strict limits
         prompt = f"""
 You are writing a recruiter note. Be unbiased and evaluate only qualifications.
 
@@ -104,7 +96,6 @@ OUTPUT RULES (MUST FOLLOW)
 
         raw = await self.gemini.generate_text_response(prompt)
 
-        # enforce “two sentences max” even if Gemini ignores format
         return _two_sentence_cap(raw, max_chars=280)
 
     async def generate_full_evaluation_report(self, job, candidate, match_result) -> str:
@@ -129,7 +120,6 @@ OUTPUT RULES (MUST FOLLOW)
             )
             return _clean_text(msg, max_chars=900)
 
-        # Provide structured, consistent report format
         prompt = f"""
 You are writing a hiring-manager evaluation summary. Be unbiased and focus only on job-relevant qualifications.
 

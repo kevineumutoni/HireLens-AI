@@ -1,9 +1,16 @@
+# src/services/gemini_client.py
 """
 Gemini API client - SIMPLIFIED + RELIABLE
 - Request plain text (not JSON mode)
 - Parse text into structured data
 - Retry transient failures (429/503) with exponential backoff
 - Mark failures so ranking can exclude them (fairness)
+
+Updates for resume extraction:
+- Increase maxOutputTokens to reduce truncation
+- Print head + tail of Gemini output when debug=True
+- More robust JSON parsing (handles code fences, extra text, trailing commas, single quotes)
+- Resume extraction prompt reduced to key fields to avoid truncation (name/email/headline/location/skills)
 """
 from __future__ import annotations
 
@@ -38,7 +45,8 @@ class GeminiClient:
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": 0.2,
-                "maxOutputTokens": 1200,  # keep output short -> better formatting + fewer truncations
+                # bigger output so JSON doesn't cut off mid-way
+                "maxOutputTokens": 4096,
             },
         }
 
@@ -53,15 +61,20 @@ class GeminiClient:
                     wait = min(12.0, self.base_backoff_seconds * (2 ** (attempt - 1)))
                     last_error = f"HTTP {resp.status_code}"
                     if self.debug:
-                        print(f"⚠️ Gemini transient error {resp.status_code}. attempt={attempt}/{self.max_attempts}, waiting {wait:.1f}s")
+                        print(
+                            f"⚠️ Gemini transient error {resp.status_code}. "
+                            f"attempt={attempt}/{self.max_attempts}, waiting {wait:.1f}s"
+                        )
                     time.sleep(wait)
                     continue
 
                 if resp.status_code == 403:
-                    return {"success": False, "error": "HTTP 403: API key invalid or API not enabled for this key/project."}
+                    return {
+                        "success": False,
+                        "error": "HTTP 403: API key invalid or API not enabled for this key/project.",
+                    }
 
                 if resp.status_code != 200:
-                    # Not retrying other codes by default (but you can add if needed)
                     return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
 
                 result = resp.json()
@@ -89,7 +102,9 @@ class GeminiClient:
                 last_error = f"Connection error: {str(e)[:120]}"
                 wait = min(12.0, self.base_backoff_seconds * (2 ** (attempt - 1)))
                 if self.debug:
-                    print(f"⚠️ Gemini connection error. attempt={attempt}/{self.max_attempts}, waiting {wait:.1f}s")
+                    print(
+                        f"⚠️ Gemini connection error. attempt={attempt}/{self.max_attempts}, waiting {wait:.1f}s"
+                    )
                 time.sleep(wait)
                 continue
 
@@ -99,7 +114,7 @@ class GeminiClient:
         return {"success": False, "error": f"{last_error} after {self.max_attempts} attempts"}
 
     # ---------------------------
-    # Parsing helpers
+    # Scoring parsing helpers
     # ---------------------------
 
     def _extract_score(self, text: str) -> int | None:
@@ -116,13 +131,6 @@ class GeminiClient:
         return None
 
     def _extract_section_lines(self, text: str, header: str) -> list[str]:
-        """
-        Extract bullet lines under a section header like:
-        Strengths:
-        - ...
-        - ...
-        """
-        # Grab everything after "Header:" until next "<Word...>:" or end
         m = re.search(
             rf"{re.escape(header)}\s*:\s*(.*?)(?:\n[A-Za-z][A-Za-z ]{{0,30}}\s*:\s*|$)",
             text,
@@ -140,13 +148,10 @@ class GeminiClient:
             line = line.strip()
             if not line:
                 continue
-            # remove bullet markers
             line = re.sub(r"^[\-\*\•\u2022\d\)\.]+\s*", "", line).strip()
             if not line:
                 continue
-            # normalize whitespace
             line = re.sub(r"\s+", " ", line).strip()
-            # keep reasonable length
             if 4 <= len(line) <= 180:
                 items.append(line)
 
@@ -158,7 +163,6 @@ class GeminiClient:
             reasoning = m.group(1).strip()
             reasoning = re.sub(r"\s+", " ", reasoning)
             return reasoning[:260]
-        # fallback: first sentence-ish
         compact = re.sub(r"\s+", " ", text).strip()
         return compact[:260]
 
@@ -167,7 +171,6 @@ class GeminiClient:
         if m:
             return m.group(1).title()
 
-        # fallback from score if not provided
         if score is None:
             return "Manual review"
         if score >= 80:
@@ -185,7 +188,6 @@ class GeminiClient:
         reasoning = self._extract_reasoning(text)
         recommendation = self._extract_recommendation(text, score)
 
-        # If model didn't follow format, keep sensible defaults
         if score is None:
             score = 50
 
@@ -198,14 +200,152 @@ class GeminiClient:
             "reasoning": reasoning,
         }
 
+    # ---------------------------
+    # Resume -> Candidate extraction
+    # ---------------------------
+
+    def _extract_email_from_text_fallback(self, text: str) -> str:
+        emails = re.findall(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", text or "")
+        return emails[0].strip().lower() if emails else ""
+
+    def _try_parse_json_object(self, text: str) -> dict | None:
+        """
+        Parse JSON even if Gemini returns extra text or "almost JSON".
+        Handles:
+        - ```json fences
+        - extra text before/after
+        - trailing commas
+        - single quotes
+        """
+        import json
+
+        if not text:
+            return None
+
+        t = text.strip()
+
+        # strip code fences
+        if t.startswith("```"):
+            t = re.sub(r"^```[a-zA-Z]*\s*", "", t)
+            t = re.sub(r"\s*```$", "", t).strip()
+
+        # find json object boundaries
+        start = t.find("{")
+        end = t.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            return None
+
+        candidate = t[start : end + 1].strip()
+
+        # strict parse
+        try:
+            obj = json.loads(candidate)
+            return obj if isinstance(obj, dict) else None
+        except Exception:
+            pass
+
+        # light repair: remove trailing commas before } or ]
+        repaired = re.sub(r",\s*([}\]])", r"\1", candidate)
+
+        # light repair: convert single quotes to double quotes (best-effort)
+        repaired = re.sub(r"(?<!\\)'", '"', repaired)
+
+        try:
+            obj = json.loads(repaired)
+            return obj if isinstance(obj, dict) else None
+        except Exception:
+            return None
+
+    async def extract_candidate_profile(self, resume_text: str) -> dict:
+        """
+        Extract candidate info from resume text.
+        IMPORTANT: keep the output small to reduce truncation.
+
+        Returns:
+          { success: bool, error: str, candidate: dict|None }
+        """
+        resume_text = (resume_text or "").strip()
+        if not resume_text:
+            return {"success": False, "error": "Empty resume text", "candidate": None}
+
+        # Smaller schema to avoid truncation (this is what your table needs)
+        prompt = f"""
+Extract candidate info from the resume below.
+
+Return ONLY JSON (no markdown, no backticks, no explanation).
+
+Schema:
+{{
+  "firstName": "string",
+  "lastName": "string",
+  "email": "string",
+  "headline": "string",
+  "location": "string",
+  "skills": ["string"]
+}}
+
+Rules:
+- skills: list up to 20 items (skill names only)
+- headline <= 120 chars
+- location <= 80 chars
+- If unknown, use "" or [].
+
+Resume:
+\"\"\"{resume_text[:20000]}\"\"\"
+"""
+
+        result = self._make_api_call(prompt)
+        if not result.get("success"):
+            return {"success": False, "error": result.get("error", "Gemini extraction failed"), "candidate": None}
+
+        raw = result.get("text", "")
+
+        if self.debug:
+            print("----- GEMINI RAW OUTPUT START -----")
+            print(raw[:2000])
+            print("----- GEMINI RAW OUTPUT END -----")
+            print("----- GEMINI RAW OUTPUT TAIL -----")
+            print(raw[-400:])
+            print("----- GEMINI RAW OUTPUT TAIL END -----")
+
+        obj = self._try_parse_json_object(raw)
+        if not obj:
+            email = self._extract_email_from_text_fallback(resume_text)
+            return {
+                "success": False,
+                "error": "Gemini returned non-JSON output (likely truncated or extra text)",
+                "candidate": {"email": email},
+            }
+
+        # Normalize fields
+        email = str(obj.get("email") or "").strip().lower()
+        if not email:
+            email = self._extract_email_from_text_fallback(resume_text)
+        obj["email"] = email
+
+        obj["firstName"] = str(obj.get("firstName") or "Unknown").strip() or "Unknown"
+        obj["lastName"] = str(obj.get("lastName") or "").strip()
+        obj["headline"] = str(obj.get("headline") or "").strip()[:120]
+        obj["location"] = str(obj.get("location") or "").strip()[:80]
+
+        # Normalize skills -> list[str]
+        skills = obj.get("skills") or []
+        if not isinstance(skills, list):
+            skills = []
+        cleaned = []
+        for s in skills[:20]:
+            s = str(s or "").strip()
+            if s:
+                cleaned.append(s)
+        obj["skills"] = cleaned
+
+        return {"success": True, "error": "", "candidate": obj}
 
     async def generate_structured_response(self, prompt: str) -> dict:
         """Get scoring response in structured format."""
         result = self._make_api_call(prompt)
 
-        if not result["success"]:
-            # IMPORTANT: don't return fake 50 as if it was a real evaluation
-            # That’s what made ranking unfair.
+        if not result.get("success"):
             error = result.get("error", "Evaluation failed")
             if self.debug:
                 print(f"   ❌ API Error: {error}")
@@ -225,6 +365,6 @@ class GeminiClient:
     async def generate_text_response(self, prompt: str) -> str:
         """Get text response."""
         result = self._make_api_call(prompt)
-        if result["success"]:
+        if result.get("success"):
             return result["text"].strip()
         return f"Unable to generate explanation: {result.get('error', 'unknown error')}"

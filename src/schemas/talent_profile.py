@@ -1,5 +1,4 @@
 # src/schemas/talent_profile.py
-# Matches the Umurava Talent Profile Schema specification exactly.
 from pydantic import BaseModel
 from typing import Optional, List
 

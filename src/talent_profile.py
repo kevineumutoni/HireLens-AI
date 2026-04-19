@@ -26,18 +26,15 @@ class TalentProfile:
     
     def validate(self) -> bool:
         """Validate profile against schema."""
-        # Check required fields
         missing_fields = self.REQUIRED_FIELDS - set(self.profile.keys())
         if missing_fields:
             self.validation_errors.append(f"Missing required fields: {missing_fields}")
             return False
         
-        # Validate email format
         if "@" not in self.profile.get("email", ""):
             self.validation_errors.append("Invalid email format")
             return False
         
-        # Validate skills structure
         if not isinstance(self.profile.get("skills"), list):
             self.validation_errors.append("Skills must be a list")
             return False
@@ -47,12 +44,10 @@ class TalentProfile:
                 self.validation_errors.append(f"Invalid skill structure: {skill}")
                 return False
         
-        # Validate experience structure
         if not isinstance(self.profile.get("experience"), list):
             self.validation_errors.append("Experience must be a list")
             return False
         
-        # Validate education structure
         if not isinstance(self.profile.get("education"), list):
             self.validation_errors.append("Education must be a list")
             return False

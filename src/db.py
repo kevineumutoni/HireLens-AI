@@ -7,3 +7,4 @@ db = client[settings.MONGODB_DB]
 jobs_col       = db["jobs"]
 candidates_col = db["candidates"]
 results_col    = db["screening_results"]
+users_col      = db["users"]  # ✅ add this
