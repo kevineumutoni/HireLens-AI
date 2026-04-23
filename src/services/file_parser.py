@@ -129,25 +129,21 @@ class FileParser:
                     else:
                         candidate["skills"] = []
 
-                    # Ensure lists exist for consistency
                     for k in ["languages", "experience", "education", "projects"]:
                         if k not in candidate or candidate[k] is None:
                             candidate[k] = []
                         if not isinstance(candidate[k], list):
                             candidate[k] = []
 
-                    # timestamps
                     candidate["createdAt"] = candidate.get("createdAt") or now
                     candidate["updatedAt"] = now
                     candidate["source"] = "pdf_gemini"
 
-                    # Minimal required fields
                     if not candidate.get("email"):
                         candidate["email"] = FileParser._extract_email(text)
 
                     return candidate, []
 
-                # Gemini failed but may have partial candidate
                 gemini_error = result.get("error") or "Gemini extraction failed"
                 partial = result.get("candidate") if isinstance(result.get("candidate"), dict) else {}
                 if partial:
@@ -163,7 +159,6 @@ class FileParser:
             except Exception as e:
                 gemini_error = f"Gemini error: {str(e)}"
 
-            # ---- Fallback: basic heuristics ----
             lines = text.split("\n")
             candidate = {
                 "firstName": "FromPDF",
@@ -189,7 +184,6 @@ class FileParser:
         except Exception as e:
             return {}, [f"PDF parsing error: {str(e)}"]
 
-    # ========== HELPER METHODS ==========
 
     @staticmethod
     def _parse_skills(skills_str: str) -> List[Dict]:

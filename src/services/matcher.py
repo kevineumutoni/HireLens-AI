@@ -21,7 +21,6 @@ class CandidateMatcher:
     def _build_prompt(self, job: Job, candidate: TalentProfile) -> str:
         """Build a strict-format screening prompt (easy parsing, no truncation)."""
 
-        # Provide more structured input (avoid losing important info)
         skills_lines = "\n".join(
             [f"- {s.name} | level={s.level} | years={s.yearsOfExperience}" for s in candidate.skills]
         )

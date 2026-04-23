@@ -18,7 +18,8 @@ from src.db import jobs_col, candidates_col
 from src.schemas.request_models import (
     JobResponse,
     JobListResponse,
-    JobRequest
+    JobRequest,
+    JobUpdateRequest,
 )
 
 router = APIRouter()
@@ -60,12 +61,9 @@ async def list_jobs(
             .limit(limit)
         )
 
-        # FIX: for each job that has useAllCandidates=True, always return
-        # the live candidate count so it stays accurate even as candidates are added.
         total_candidates = candidates_col.count_documents({})
         for job in jobs_list:
             if job.get("useAllCandidates"):
-                # Sync live count into the document before serializing
                 job["applicantCount"] = total_candidates
 
         jobs_list = [serialize_job(j) for j in jobs_list]
@@ -94,7 +92,6 @@ async def get_job(job_id: str):
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
 
-        # FIX: return live candidate count for jobs using all candidates
         if job.get("useAllCandidates"):
             job["applicantCount"] = candidates_col.count_documents({})
 
@@ -118,7 +115,6 @@ async def create_job(job_data: JobRequest):
     try:
         include_all = bool(getattr(job_data, "includeMockCandidates", False))
 
-        # Count ALL candidates in the system (not just mock ones)
         total_candidates = candidates_col.count_documents({})
         applicant_count = total_candidates if include_all else 0
 
@@ -129,7 +125,6 @@ async def create_job(job_data: JobRequest):
             "createdAt": datetime.now(),
             "updatedAt": datetime.now(),
             "applicantCount": applicant_count,
-            # Store the flag so GET endpoints can keep count live
             "useAllCandidates": include_all,
         }
 
@@ -208,7 +203,44 @@ async def unsync_candidates(job_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error unsyncing candidates: {str(e)}")
 
+@router.patch("/{job_id}", response_model=JobResponse)
+async def patch_job(job_id: str, job_data: JobUpdateRequest):
+    """Partially update a job (supports updating only status)."""
+    try:
+        try:
+            filter_doc = {"_id": ObjectId(job_id)}
+        except Exception:
+            filter_doc = {"jobId": job_id}
 
+        existing = jobs_col.find_one(filter_doc)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        update_payload = job_data.model_dump(exclude_unset=True)
+
+        if "status" in update_payload:
+            allowed = {"open", "screening", "closed"}
+            s = str(update_payload["status"]).lower()
+            if s not in allowed:
+                raise HTTPException(status_code=400, detail=f"Invalid status '{s}'. Must be one of {sorted(allowed)}")
+            update_payload["status"] = s
+
+        update_payload["updatedAt"] = datetime.now()
+
+        jobs_col.update_one(filter_doc, {"$set": update_payload})
+
+        updated_job = jobs_col.find_one(filter_doc)
+
+        if updated_job and updated_job.get("useAllCandidates"):
+            updated_job["applicantCount"] = candidates_col.count_documents({})
+
+        return JobResponse(**serialize_job(updated_job))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating job: {str(e)}")
+        
 @router.put("/{job_id}")
 async def update_job(job_id: str, job_data: JobRequest):
     """Update a job posting."""

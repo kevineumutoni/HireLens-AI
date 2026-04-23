@@ -166,3 +166,22 @@ class HealthResponse(BaseModel):
     timestamp: datetime
     mongodb_connected: bool
     message: str
+
+
+class JobUpdateRequest(BaseModel):
+    """
+    Partial update model for jobs (PATCH).
+    All fields optional.
+    """
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    description: Optional[str] = Field(default=None, min_length=10)
+    location: Optional[str] = None
+    employmentType: Optional[str] = None
+    requiredSkills: Optional[List[str]] = None
+    preferredSkills: Optional[List[str]] = None
+    minYearsExperience: Optional[int] = None
+    requiredEducation: Optional[str] = None
+    softSkills: Optional[List[str]] = None
+    status: Optional[str] = None
+    includeMockCandidates: Optional[bool] = None
+    useAllCandidates: Optional[bool] = None

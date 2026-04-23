@@ -23,7 +23,6 @@ def load_candidates_from_csv(csv_path: str) -> List[TalentProfile]:
             if len(parts) >= 3:
                 skills.append(Skill(name=parts[0], level=parts[1], yearsOfExperience=int(parts[2])))
 
-        # Minimal required fields; fill others with safe defaults
         candidates.append(
             TalentProfile(
                 firstName=str(row.get("firstName", "Unknown")),

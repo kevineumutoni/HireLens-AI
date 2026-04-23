@@ -1,6 +1,6 @@
 # src/api/endpoints/screening.py
 """
-Screening endpoint — fixed explanation generation.
+Screening endpoint .
 
 Root cause fix: explanation was always "" because _parse_scoring_response
 never generated it. Now we build a recruiter-friendly explanation inline
@@ -65,7 +65,6 @@ def _build_explanation(
     """
     parts = []
 
-    # Opening: score + recommendation
     rec_map = {
         "Strong Yes": "a strong fit",
         "Yes":        "a good fit",
@@ -75,10 +74,8 @@ def _build_explanation(
     fit_label = rec_map.get(recommendation, "a candidate to review")
     parts.append(f"{candidate_name} scored {score}/100 and is {fit_label}.")
 
-    # Strengths sentence
     if strengths:
         top = strengths[0]
-        # Truncate if very long
         if len(top) > 120:
             top = top[:117] + "…"
         if len(strengths) > 1:
@@ -89,7 +86,6 @@ def _build_explanation(
         else:
             parts.append(f"Key strength: {top}.")
 
-    # Gaps sentence
     if gaps:
         top_gap = gaps[0]
         if len(top_gap) > 120:
@@ -170,7 +166,6 @@ Recommendation: [Strong Yes / Yes / Maybe / No]
 Reasoning: [One concise sentence]
 """
 
-
 async def _evaluate_one(
     gemini: GeminiClient,
     job: Dict[str, Any],
@@ -190,7 +185,6 @@ async def _evaluate_one(
             result["candidateId"]   = cid
             result["candidateName"] = name
 
-            # ── FIX: always generate a non-empty explanation ──
             result["explanation"] = _build_explanation(
                 candidate_name = name,
                 score          = result.get("matchScore", 0),
@@ -222,7 +216,6 @@ async def _evaluate_one(
             "candidateName":    name,
             "error":            str(e)[:200],
         }
-
 
 
 @router.get("", response_model=ScreeningResultListResponse)
@@ -265,7 +258,6 @@ async def get_screening_result(run_id: str):
 @router.post("", response_model=dict)
 async def trigger_screening(request: ScreeningRequest):
     try:
-        # 1. Find job
         job = jobs_col.find_one({"jobId": request.job_id})
         if not job:
             try:
@@ -275,7 +267,6 @@ async def trigger_screening(request: ScreeningRequest):
         if not job:
             raise HTTPException(status_code=404, detail=f"Job '{request.job_id}' not found")
 
-        # 2. Get candidates
         if request.candidate_ids:
             obj_ids = []
             for rid in request.candidate_ids:
@@ -290,13 +281,11 @@ async def trigger_screening(request: ScreeningRequest):
         if not candidates_to_screen:
             raise HTTPException(status_code=400, detail="No candidates found to screen")
 
-        # 3. Init Gemini
         try:
             gemini = GeminiClient()
         except ValueError as e:
             raise HTTPException(status_code=500, detail=f"Gemini not configured: {str(e)}")
 
-        # 4. Evaluate in concurrent batches
         screening_run_id = f"RUN-{datetime.now().strftime('%Y%m%d%H%M%S')}"
         all_results: List[Dict[str, Any]] = []
         total = len(candidates_to_screen)
@@ -310,11 +299,9 @@ async def trigger_screening(request: ScreeningRequest):
             if batch_start + BATCH_SIZE < total:
                 await asyncio.sleep(0.3)
 
-        # 5. Split successful / failed
         successful = [r for r in all_results if r.get("evaluationStatus") == "success"]
         failed     = [r for r in all_results if r.get("evaluationStatus") != "success"]
 
-        # 6. Rank
         successful.sort(key=lambda x: x.get("matchScore", 0), reverse=True)
 
         shortlist = []
@@ -332,7 +319,6 @@ async def trigger_screening(request: ScreeningRequest):
                 "explanation":    entry.get("explanation", ""),
             })
 
-        # 7. Save
         doc = {
             "job": {
                 "jobId":          job.get("jobId"),
@@ -370,3 +356,45 @@ async def trigger_screening(request: ScreeningRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Screening error: {str(e)}")
+
+@router.delete("/{run_id}", response_model=dict)
+async def delete_screening_result(run_id: str):
+    """
+    Delete a single screening run by Mongo _id or screeningRunId.
+    """
+    try:
+        deleted = None
+        try:
+            deleted = results_col.delete_one({"_id": ObjectId(run_id)})
+        except Exception:
+            deleted = None
+
+        if not deleted or deleted.deleted_count == 0:
+            deleted = results_col.delete_one({"screeningRunId": run_id})
+
+        if not deleted or deleted.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Screening result not found")
+
+        return {"message": "Screening result deleted", "deleted": deleted.deleted_count}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting screening result: {str(e)}")
+
+
+@router.delete("", response_model=dict)
+async def delete_all_screening_results(job_id: Optional[str] = None):
+    """
+    Optional convenience endpoint:
+    - DELETE /api/screening            => deletes ALL runs
+    - DELETE /api/screening?job_id=... => deletes runs for a given job
+    """
+    try:
+        query_filter: Dict[str, Any] = {}
+        if job_id:
+            query_filter = {"job.jobId": job_id}
+
+        res = results_col.delete_many(query_filter)
+        return {"message": "Screening results deleted", "deleted": res.deleted_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting screening results: {str(e)}")

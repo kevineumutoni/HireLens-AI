@@ -1,15 +1,16 @@
-# src/api/endpoints/auth.py
-
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime, timedelta
 from jose import jwt
 from passlib.context import CryptContext
+import logging
 
 from src.db import users_col
 from src.config.settings import settings
 
 router = APIRouter()
+
+logger = logging.getLogger("hirelens.auth")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -24,7 +25,6 @@ class SignupRequest(BaseModel):
     firstName: str = Field(min_length=1, max_length=80)
     lastName: str = Field(min_length=1, max_length=80)
     email: EmailStr
-    # Keep 128 if you want, but we still enforce 72 bytes at runtime.
     password: str = Field(min_length=8, max_length=128)
 
 
@@ -84,41 +84,68 @@ def _serialize_user(u: dict) -> dict:
 
 
 @router.post("/signup")
-def signup(body: SignupRequest):
+def signup(body: SignupRequest, request: Request):
     email = body.email.lower().strip()
+    ip = request.client.host if request.client else "unknown"
 
-    existing = users_col.find_one({"email": email})
-    if existing:
-        raise HTTPException(status_code=409, detail="Email already in use")
+    logger.info("signup_start email=%s ip=%s", email, ip)
 
-    _ensure_bcrypt_password_ok(body.password)
+    try:
+        existing = users_col.find_one({"email": email})
+        if existing:
+            logger.info("signup_conflict email=%s ip=%s", email, ip)
+            raise HTTPException(status_code=409, detail="Email already in use")
 
-    doc = {
-        "firstName": body.firstName.strip(),
-        "lastName": body.lastName.strip(),
-        "email": email,
-        "passwordHash": _hash_password(body.password),
-        "role": "recruiter",
-        "createdAt": datetime.utcnow().isoformat(),
-    }
+        _ensure_bcrypt_password_ok(body.password)
 
-    ins = users_col.insert_one(doc)
-    user = users_col.find_one({"_id": ins.inserted_id})
-    token = _create_token(str(ins.inserted_id), email)
+        doc = {
+            "firstName": body.firstName.strip(),
+            "lastName": body.lastName.strip(),
+            "email": email,
+            "passwordHash": _hash_password(body.password),
+            "role": "recruiter",
+            "createdAt": datetime.utcnow().isoformat(),
+        }
 
-    return {"token": token, "user": _serialize_user(user)}
+        ins = users_col.insert_one(doc)
+        user = users_col.find_one({"_id": ins.inserted_id})
+        token = _create_token(str(ins.inserted_id), email)
+
+        logger.info("signup_success email=%s user_id=%s ip=%s", email, str(ins.inserted_id), ip)
+        return {"token": token, "user": _serialize_user(user)}
+
+    except HTTPException as he:
+        logger.warning("signup_http_error email=%s ip=%s status=%s detail=%s", email, ip, he.status_code, he.detail)
+        raise
+    except Exception as e:
+        logger.exception("signup_unhandled_error email=%s ip=%s err=%s", email, ip, str(e))
+        raise HTTPException(status_code=500, detail="Signup failed (server error)")
 
 
 @router.post("/signin")
-def signin(body: SigninRequest):
+def signin(body: SigninRequest, request: Request):
     email = body.email.lower().strip()
+    ip = request.client.host if request.client else "unknown"
 
-    user = users_col.find_one({"email": email})
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    logger.info("signin_start email=%s ip=%s", email, ip)
 
-    if not _verify_password(body.password, user.get("passwordHash", "")):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    try:
+        user = users_col.find_one({"email": email})
+        if not user:
+            logger.info("signin_invalid_user email=%s ip=%s", email, ip)
+            raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = _create_token(str(user["_id"]), email)
-    return {"token": token, "user": _serialize_user(user)}
+        if not _verify_password(body.password, user.get("passwordHash", "")):
+            logger.info("signin_invalid_password email=%s ip=%s", email, ip)
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        token = _create_token(str(user["_id"]), email)
+        logger.info("signin_success email=%s user_id=%s ip=%s", email, str(user["_id"]), ip)
+        return {"token": token, "user": _serialize_user(user)}
+
+    except HTTPException as he:
+        logger.warning("signin_http_error email=%s ip=%s status=%s detail=%s", email, ip, he.status_code, he.detail)
+        raise
+    except Exception as e:
+        logger.exception("signin_unhandled_error email=%s ip=%s err=%s", email, ip, str(e))
+        raise HTTPException(status_code=500, detail="Signin failed (server error)")

@@ -136,7 +136,6 @@ class DummyDataGenerator:
         for skill in selected_skills:
             level = random.choice(skill_level_dist)
             if level in skill["levels"]:
-                # FIXED: Ensure years_of_experience is always valid (1 to years_exp)
                 skill_years = random.randint(1, max(1, years_exp))
                 skills.append(Skill(
                     name=skill["name"],
@@ -144,7 +143,6 @@ class DummyDataGenerator:
                     yearsOfExperience=skill_years
                 ))
         
-        # Generate languages
         languages = []
         for _ in range(random.randint(1, 2)):
             languages.append(Language(
@@ -166,7 +164,6 @@ class DummyDataGenerator:
                 isCurrent=True if random.random() > 0.5 else False
             ))
         
-        # Generate education 
         start_year = datetime.now().year - random.randint(6, 12)
         end_year = start_year + random.randint(3, 5)  # FIXED: Ensure endYear > startYear
         
@@ -180,7 +177,6 @@ class DummyDataGenerator:
             )
         ]
         
-        # Generate projects
         projects = []
         for _ in range(random.randint(1, 3)):
             start, end = DummyDataGenerator._generate_valid_date_range(random.randint(1, 3))
@@ -194,7 +190,6 @@ class DummyDataGenerator:
                 link=f"https://github.com/{first_name.lower()}-{last_name.lower()}/{candidate_id}"
             ))
         
-        # Availability
         availability = Availability(
             status=random.choice(["Available", "Open to Opportunities", "Available"]),
             type=random.choice(["Full-time", "Full-time", "Contract"]),
@@ -226,7 +221,6 @@ class DummyDataGenerator:
         """Generate diverse candidate pool."""
         candidates = []
         
-        # Distribute across profile types for diversity
         strong_count = int(count * 0.3)      # 30% strong
         moderate_count = int(count * 0.4)    # 40% moderate
         weak_count = count - strong_count - moderate_count  # 30% weak/balanced

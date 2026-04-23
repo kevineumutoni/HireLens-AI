@@ -135,11 +135,9 @@ def _normalize_candidate_dict(c: Dict[str, Any], now: str) -> Dict[str, Any]:
     out["updatedAt"] = now
     out["createdAt"] = out.get("createdAt") or now
 
-    # Some minimal safe defaults (avoid missing fields issues)
     out["firstName"] = str(out.get("firstName") or "Unknown").strip() or "Unknown"
     out["lastName"] = str(out.get("lastName") or "").strip()
 
-    # Keep arrays as arrays
     for k in ["skills", "languages", "experience", "education", "projects"]:
         if k in out and out[k] is None:
             out[k] = []
@@ -195,7 +193,6 @@ async def upload_candidates(file: UploadFile = File(...)):
                 errors.append("Candidate missing email; skipped")
                 continue
 
-            # Upsert by email (update duplicates)
             res = candidates_col.update_one(
                 {"email": email},
                 {"$set": normalized},
@@ -205,8 +202,6 @@ async def upload_candidates(file: UploadFile = File(...)):
             if res.upserted_id is not None:
                 uploaded_count += 1
             else:
-                # matched existing
-                # modified_count can be 0 if the same data was uploaded again
                 updated_count += 1
 
         return FileUploadResponse(
