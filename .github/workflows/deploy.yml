@@ -43,7 +43,21 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy to Cloud Run
+        shell: bash
         run: |
+          cat > cloudrun.env.yaml << 'EOF'
+          MONGODB_URI: "${{ secrets.MONGODB_URI }}"
+          MONGODB_DB: "hirelens"
+          GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+          GEMINI_API_KEYS: "${{ secrets.GEMINI_API_KEYS }}"
+          FRONTEND_URL: "${{ secrets.FRONTEND_URL }}"
+          DEBUG: "false"
+          TOP_N_CANDIDATES: "10"
+          BATCH_SIZE: "5"
+          REQUEST_DELAY_MS: "500"
+          LOG_LEVEL: "INFO"
+          EOF
+
           gcloud run deploy "${{ env.SERVICE_NAME }}" \
             --image="${{ env.IMAGE }}:latest" \
             --platform=managed \
@@ -54,9 +68,10 @@ jobs:
             --cpu=2 \
             --timeout=3600 \
             --max-instances=5 \
-            --set-env-vars="MONGODB_URI=${{ secrets.MONGODB_URI }},MONGODB_DB=hirelens,GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},MONGODB_DB=hirelens,GEMINI_API_KEYS=${{ secrets.GEMINI_API_KEYS }},FRONTEND_URL=${{ secrets.FRONTEND_URL }},DEBUG=false,TOP_CANDIDATES=10,LOG_LEVEL=INFO"
+            --env-vars-file=cloudrun.env.yaml
 
       - name: Output Cloud Run URL
+        shell: bash
         run: |
           gcloud run services describe "${{ env.SERVICE_NAME }}" \
             --region "${{ env.REGION }}" \
