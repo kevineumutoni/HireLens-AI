@@ -71,9 +71,6 @@ settings = Settings()
 
 _keys = settings.api_keys
 if not _keys:
-    print("⚠️  WARNING: No GEMINI API keys found in .env")
-    print("   Add GEMINI_API_KEY=your_key")
+    print("WARNING: No GEMINI API keys found in environment")
 else:
-    print(f"✅ Gemini API Key pool: {len(_keys)} key(s) loaded")
-    for i, k in enumerate(_keys, 1):
-        print(f"   Key {i}: {k[:12]}...")
+    print(f"Gemini API key pool: {len(_keys)} key(s) loaded")
