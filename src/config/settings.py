@@ -1,4 +1,3 @@
-# src/config/settings.py
 """
 Configuration management for HireLens-AI backend.
 Supports multiple Gemini API keys via GEMINI_API_KEYS (comma-separated).
@@ -73,9 +72,8 @@ settings = Settings()
 _keys = settings.api_keys
 if not _keys:
     print("⚠️  WARNING: No GEMINI API keys found in .env")
-    print("   Add GEMINI_API_KEY=your_key )
+    print("   Add GEMINI_API_KEY=your_key")
 else:
     print(f"✅ Gemini API Key pool: {len(_keys)} key(s) loaded")
     for i, k in enumerate(_keys, 1):
         print(f"   Key {i}: {k[:12]}...")
-
