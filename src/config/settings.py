@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     MONGODB_DB: str = "hirelens"
 
     FRONTEND_URL: str = os.getenv("FRONTEND_URL")
-    API_PORT: int = 8000
+    API_PORT: int = int(os.getenv("API_PORT", "8000"))
     API_HOST: str = "0.0.0.0"
     DEBUG: bool = True
 
