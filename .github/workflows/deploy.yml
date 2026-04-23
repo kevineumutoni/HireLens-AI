@@ -54,7 +54,7 @@ jobs:
             --cpu=2 \
             --timeout=3600 \
             --max-instances=5 \
-            --set-env-vars="MONGODB_URI=${{ secrets.MONGODB_URI }},MONGODB_DB=hirelens,GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},FRONTEND_URL=${{ secrets.FRONTEND_URL }},DEBUG=false,TOP_CANDIDATES=10,LOG_LEVEL=INFO"
+            --set-env-vars="MONGODB_URI=${{ secrets.MONGODB_URI }},MONGODB_DB=hirelens,GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},MONGODB_DB=hirelens,GEMINI_API_KEYS=${{ secrets.GEMINI_API_KEYS }},FRONTEND_URL=${{ secrets.FRONTEND_URL }},DEBUG=false,TOP_CANDIDATES=10,LOG_LEVEL=INFO"
 
       - name: Output Cloud Run URL
         run: |
